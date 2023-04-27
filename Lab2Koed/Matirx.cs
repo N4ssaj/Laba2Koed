@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.Statistics;
 
 namespace Lab2Koed
 {
@@ -103,14 +105,14 @@ namespace Lab2Koed
                     double r = correlation[j1, j2]; // коэффициент корреляции
                     int df = correlation.GetLength(0) - 2; // число степеней свободы
 
-                    // Вычисление критического значения t-статистики
-                    double t_critical = GetCriticalValue(alpha / 2, df);
 
-                    // Вычисление квадрата t-статистики
-                    double t_squared = r * r * df / (1 - r * r);
+                    double t_table = GetCriticalValue(alpha / 2, df);
+
+
+                    double t = Math.Sqrt(r * Math.Sqrt(df)) / Math.Sqrt(1 - Math.Pow(r, 2));
 
                     // Сравнение квадрата t-статистики с квадратом критического значения
-                    if (t_squared > t_critical * t_critical)
+                    if (Math.Abs(t) > t_table)
                     {
                         // Коэффициент корреляции значимо отличается от нуля
                         return true;
@@ -184,5 +186,278 @@ namespace Lab2Koed
                 Console.WriteLine();
             }
         }
+        public static T[] GetFirstColumn<T>(T[,] array)
+        {
+            int rows = array.GetLength(0);
+            T[] column = new T[rows];
+
+            for (int i = 0; i < rows; i++)
+            {
+                column[i] = array[i, 0];
+            }
+
+            return column;
+        }
+        public static T[,] GetOtherColumns<T>(T[,] array)
+        {
+            int rows = array.GetLength(0);
+            int columns = array.GetLength(1);
+            T[,] otherColumns = new T[rows, columns - 1];
+
+            for (int i = 1; i < columns; i++)
+            {
+                for (int j = 0; j < rows; j++)
+                {
+                    otherColumns[j, i - 1] = array[j, i];
+                }
+            }
+
+            return otherColumns;
+        }
+        public static void PrintArray<T>(T[,] array)
+        {
+            int rows = array.GetLength(0);
+            int columns = array.GetLength(1);
+
+            for (int i = 0; i < rows; i++)
+            {
+                for (int j = 0; j < columns; j++)
+                {
+                    Console.Write(array[i, j] + "\t");
+                }
+                Console.WriteLine();
+            }
+        }
+        public static void MHK(double[,] Z)
+        {
+            double[] y1 = GetFirstColumn<double>(Z);
+            double[,] X1 = GetOtherColumns<double>(Z);
+
+            Vector<double> y = Vector<double>.Build.Dense(y1);
+            Matrix<double> X = Matrix<double>.Build.DenseOfArray(X1);
+
+
+            // вычисляем МНК-оценку коэффициентов a
+            Matrix<double> Xt = X.Transpose();
+            Matrix<double> XtX = Xt * X;
+            Matrix<double> XtXinv = XtX.Inverse();
+            Vector<double> a = XtXinv * Xt * y;
+
+            // выводим результаты
+            Console.WriteLine("МНК-оценка коэффициентов:");
+            Console.WriteLine($"[{string.Join(",", a)}]");
+
+            // проверяем равенство средних значений
+            Vector<double> yHat = X * a;
+            double yMean = y.Mean();
+            double yHatMean = yHat.Mean();
+            Console.WriteLine("Среднее значение y: " + yMean);
+            Console.WriteLine("Среднее значение yHat: " + yHatMean);
+
+            // вычисляем коэффициент детерминации
+            double ssr = (yHat - yMean).DotProduct(yHat - yMean);
+            double sst = (y - yMean).DotProduct(y - yMean);
+            double r2 = ssr / sst;
+            Console.WriteLine("Коэффициент детерминации: " + r2);
+        }
+        public static void MHK2(double[,] Z)
+        {
+            double[] y =GetFirstColumn<double>(Z);
+            double[,] X =GetOtherColumns<double>(Z);
+
+            // Вычисляем МНК-оценку вектора коэффициентов a
+            double[,] Xt = Transpose(X);
+            double[,] XtX = Multiply(Xt, X);
+            double[,] invXtX = Inverse(XtX);
+            double[,] invXtX_Xt = Multiply(invXtX, Xt);
+            double[] a = Multiply(invXtX_Xt, y);
+
+            // Вычисляем прогнозные значения Y
+            double[] y_pred = Multiply(X, a);
+
+            // Вычисляем среднее значение фактических и расчетных значений Y
+            double y_mean = Mean(y);
+            double y_pred_mean = Mean(y_pred);
+
+            // Вычисляем коэффициент детерминации R^2
+            double r_squared = RSquared(y, y_pred);
+
+            // Выводим результаты на консоль
+            Console.WriteLine("МНК-оценка коэффициентов: ");
+            PrintVector(a);
+            Console.WriteLine("Среднее значение Y: {0}", y_mean);
+            Console.WriteLine("Среднее значение прогнозных Y: {0}", y_pred_mean);
+            Console.WriteLine("Коэффициент детерминации R^2: {0}", r_squared);
+        }
+        // Печатает элементы вектора arr в консоль
+        public static void PrintVector(double[] arr)
+        {
+            Console.Write("[");
+            for (int i = 0; i < arr.Length - 1; i++)
+            {
+                Console.Write(arr[i] + ", ");
+            }
+            Console.Write(arr[arr.Length - 1]);
+            Console.WriteLine("]");
+        }
+
+        // Умножает матрицу matrix на столбец vector
+        // matrix: матрица размера n на m
+        // vector: столбец размера m
+        // Возвращает столбец размера n
+        public static double[] Multiply(double[,] matrix, double[] vector)
+        {
+            int n = matrix.GetLength(0);
+            int m = matrix.GetLength(1);
+            if (vector.Length != m)
+            {
+                throw new ArgumentException("Размер столбца должен соответствовать количеству столбцов матрицы.");
+            }
+
+            double[] result = new double[n];
+            for (int i = 0; i < n; i++)
+            {
+                double sum = 0;
+                for (int j = 0; j < m; j++)
+                {
+                    sum += matrix[i, j] * vector[j];
+                }
+                result[i] = sum;
+            }
+
+            return result;
+        }
+
+        static double[,] Transpose(double[,] matrix)
+        {
+            int rows = matrix.GetLength(0);
+            int cols = matrix.GetLength(1);
+            double[,] result = new double[cols, rows];
+            for (int i = 0; i < rows; i++)
+            {
+                for (int j = 0; j < cols; j++)
+                {
+                    result[j, i] = matrix[i, j];
+                }
+            }
+            return result;
+        }
+        // Функция для перемножения матриц
+        static double[,] Multiply(double[,] matrix1, double[,] matrix2)
+        {
+            int rows1 = matrix1.GetLength(0);
+            int cols1 = matrix1.GetLength(1);
+            int rows2 = matrix2.GetLength(0);
+            int cols2 = matrix2.GetLength(1);
+            if (cols1 != rows2)
+            {
+                throw new ArgumentException("Неверные размеры матриц");
+            }
+            double[,] result = new double[rows1, cols2];
+            for (int i = 0; i < rows1; i++)
+            {
+                for (int j = 0; j < cols2; j++)
+                {
+                    double sum = 0;
+                    for (int k = 0; k < cols1; k++)
+                    {
+                        sum += matrix1[i, k] * matrix2[k, j];
+                    }
+                    result[i, j] = sum;
+                }
+            }
+            return result;
+        }
+
+        // Функция для нахождения обратной матрицы
+        public static double[,] Inverse(double[,] matrix)
+        {
+            int n = matrix.GetLength(0);
+
+            // создаем расширенную матрицу
+            double[,] augMatrix = new double[n, 2 * n];
+
+            // заполняем расширенную матрицу из исходной
+            for (int i = 0; i < n; i++)
+            {
+                for (int j = 0; j < n; j++)
+                {
+                    augMatrix[i, j] = matrix[i, j];
+                }
+                augMatrix[i, n + i] = 1;
+            }
+
+            // прямой ход метода Гаусса
+            for (int i = 0; i < n; i++)
+            {
+                // делаем главный элемент равным 1
+                double temp = augMatrix[i, i];
+                for (int j = i; j < 2 * n; j++)
+                {
+                    augMatrix[i, j] /= temp;
+                }
+
+                // вычитаем текущую строку из оставшихся
+                for (int j = i + 1; j < n; j++)
+                {
+                    double mult = augMatrix[j, i];
+                    for (int k = i; k < 2 * n; k++)
+                    {
+                        augMatrix[j, k] -= mult * augMatrix[i, k];
+                    }
+                }
+            }
+
+            // обратный ход метода Гаусса
+            for (int i = n - 1; i >= 0; i--)
+            {
+                // вычитаем текущую строку из оставшихся
+                for (int j = i - 1; j >= 0; j--)
+                {
+                    double mult = augMatrix[j, i];
+                    for (int k = i; k < 2 * n; k++)
+                    {
+                        augMatrix[j, k] -= mult * augMatrix[i, k];
+                    }
+                }
+            }
+
+            // выделяем обратную матрицу
+            double[,] invMatrix = new double[n, n];
+            for (int i = 0; i < n; i++)
+            {
+                for (int j = 0; j < n; j++)
+                {
+                    invMatrix[i, j] = augMatrix[i, n + j];
+                }
+            }
+
+            return invMatrix;
+        }
+
+        // Функция для вычисления среднего значения вектора
+        static double Mean(double[] vector)
+        {
+            int n = vector.Length;
+            double sum = 0;
+            for (int i = 0; i < n; i++)
+            {
+                sum += vector[i];
+            }
+            return sum / n;
+        }
+        public static double RSquared(double[] y, double[] y_pred)
+        {
+            double y_mean = Mean(y); // вычисляем среднее значение y
+            double ssr = 0; // сумма квадратов регрессии
+            double sst = 0; // общая сумма квадратов
+            for (int i = 0; i < y.Length; i++)
+            {
+                ssr += Math.Pow(y_pred[i] - y_mean, 2); // добавляем квадрат отклонения прогноза от среднего значения
+                sst += Math.Pow(y[i] - y_mean, 2); // добавляем квадрат отклонения фактического значения от среднего значения
+            }
+            return ssr / sst; // возвращаем отношение суммы квадратов регрессии к общей сумме квадратов
+        }
+
     }
 }
