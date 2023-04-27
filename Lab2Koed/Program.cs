@@ -9,5 +9,5 @@ Console.WriteLine();
 MatrixStatistics.CalculateStatistics(NZ, out double[] means, out double[] variances, out double[,] standardized, out double[,] covariance, out double[,] correlation);
 MatrixStatistics.Display(means, variances, standardized, covariance, correlation);
  */
-MatrixStatistics.MHK(NZ);
+//MatrixStatistics.MHK(NZ);
 MatrixStatistics.MHK2(NZ);

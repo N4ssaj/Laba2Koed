@@ -260,11 +260,31 @@ namespace Lab2Koed
             double r2 = ssr / sst;
             Console.WriteLine("Коэффициент детерминации: " + r2);
         }
+        public static double[,] AddColumnOfOnesToEnd(double[,] array)
+        {
+            int rows = array.GetLength(0);
+            int cols = array.GetLength(1);
+
+            // Создаем новый массив с дополнительной колонкой из единиц
+            double[,] newArray = new double[rows, cols + 1];
+            for (int i = 0; i < rows; i++)
+            {
+                for (int j = 0; j < cols; j++)
+                {
+                    newArray[i, j] = array[i, j];
+                }
+                newArray[i, cols] = 1;
+            }
+
+            return newArray;
+        }
+
         public static void MHK2(double[,] Z)
         {
             double[] y =GetFirstColumn<double>(Z);
-            double[,] X =GetOtherColumns<double>(Z);
+            double[,] X1 =GetOtherColumns<double>(Z);
 
+            double[,] X=AddColumnOfOnesToEnd(X1);
             // Вычисляем МНК-оценку вектора коэффициентов a
             double[,] Xt = Transpose(X);
             double[,] XtX = Multiply(Xt, X);
@@ -272,22 +292,22 @@ namespace Lab2Koed
             double[,] invXtX_Xt = Multiply(invXtX, Xt);
             double[] a = Multiply(invXtX_Xt, y);
 
-            // Вычисляем прогнозные значения Y
+            // Вычисляем  значения Y
             double[] y_pred = Multiply(X, a);
 
             // Вычисляем среднее значение фактических и расчетных значений Y
             double y_mean = Mean(y);
             double y_pred_mean = Mean(y_pred);
 
-            // Вычисляем коэффициент детерминации R^2
-            double r_squared = RSquared(y, y_pred);
+            // Вычисляем коэффициент детерминации R
+            double r = R(y, y_pred);
 
             // Выводим результаты на консоль
             Console.WriteLine("МНК-оценка коэффициентов: ");
             PrintVector(a);
-            Console.WriteLine("Среднее значение Y: {0}", y_mean);
-            Console.WriteLine("Среднее значение прогнозных Y: {0}", y_pred_mean);
-            Console.WriteLine("Коэффициент детерминации R^2: {0}", r_squared);
+            Console.WriteLine($"Среднее значение Y: {y_mean:N11}");
+            Console.WriteLine($"Среднее значение прогнозных Y: {y_pred_mean:N11}");
+            Console.WriteLine($"Коэффициент детерминации R: {r}");
         }
         // Печатает элементы вектора arr в консоль
         public static void PrintVector(double[] arr)
@@ -446,7 +466,7 @@ namespace Lab2Koed
             }
             return sum / n;
         }
-        public static double RSquared(double[] y, double[] y_pred)
+        public static double R(double[] y, double[] y_pred)
         {
             double y_mean = Mean(y); // вычисляем среднее значение y
             double ssr = 0; // сумма квадратов регрессии
@@ -456,7 +476,7 @@ namespace Lab2Koed
                 ssr += Math.Pow(y_pred[i] - y_mean, 2); // добавляем квадрат отклонения прогноза от среднего значения
                 sst += Math.Pow(y[i] - y_mean, 2); // добавляем квадрат отклонения фактического значения от среднего значения
             }
-            return ssr / sst; // возвращаем отношение суммы квадратов регрессии к общей сумме квадратов
+            return 1-(ssr / sst); // возвращаем отношение суммы квадратов регрессии к общей сумме квадратов
         }
 
     }
