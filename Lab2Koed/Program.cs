@@ -1,4 +1,5 @@
 ﻿using Lab2Koed;
+using System;
 
 var Z = ExcelToArray.GetRangeData(@$"{Directory.GetCurrentDirectory()}/Data1.xlsx", "исходные данные", "C3", "E80");
 var NZ = ExcelToArray.JaggedToMultidimensional(Z);
@@ -10,4 +11,7 @@ MatrixStatistics.CalculateStatistics(NZ, out double[] means, out double[] varian
 MatrixStatistics.Display(means, variances, standardized, covariance, correlation);
  */
 //MatrixStatistics.MHK(NZ);
-MatrixStatistics.MHK2(NZ);
+//MatrixStatistics.MHK2(NZ);
+Lab4.Execute(Z);
+
+

@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.LinearAlgebra.Factorization;
 using MathNet.Numerics.Statistics;
-
+using AsciiChart;
 namespace Lab2Koed
 {
     public static class MatrixStatistics
@@ -228,38 +230,7 @@ namespace Lab2Koed
                 Console.WriteLine();
             }
         }
-        public static void MHK(double[,] Z)
-        {
-            double[] y1 = GetFirstColumn<double>(Z);
-            double[,] X1 = GetOtherColumns<double>(Z);
 
-            Vector<double> y = Vector<double>.Build.Dense(y1);
-            Matrix<double> X = Matrix<double>.Build.DenseOfArray(X1);
-
-
-            // вычисляем МНК-оценку коэффициентов a
-            Matrix<double> Xt = X.Transpose();
-            Matrix<double> XtX = Xt * X;
-            Matrix<double> XtXinv = XtX.Inverse();
-            Vector<double> a = XtXinv * Xt * y;
-
-            // выводим результаты
-            Console.WriteLine("МНК-оценка коэффициентов:");
-            Console.WriteLine($"[{string.Join(",", a)}]");
-
-            // проверяем равенство средних значений
-            Vector<double> yHat = X * a;
-            double yMean = y.Mean();
-            double yHatMean = yHat.Mean();
-            Console.WriteLine("Среднее значение y: " + yMean);
-            Console.WriteLine("Среднее значение yHat: " + yHatMean);
-
-            // вычисляем коэффициент детерминации
-            double ssr = (yHat - yMean).DotProduct(yHat - yMean);
-            double sst = (y - yMean).DotProduct(y - yMean);
-            double r2 = ssr / sst;
-            Console.WriteLine("Коэффициент детерминации: " + r2);
-        }
         public static double[,] AddColumnOfOnesToEnd(double[,] array)
         {
             int rows = array.GetLength(0);
@@ -281,10 +252,10 @@ namespace Lab2Koed
 
         public static void MHK2(double[,] Z)
         {
-            double[] y =GetFirstColumn<double>(Z);
-            double[,] X1 =GetOtherColumns<double>(Z);
+            double[] y = GetFirstColumn<double>(Z);
+            double[,] X1 = GetOtherColumns<double>(Z);
 
-            double[,] X=AddColumnOfOnesToEnd(X1);
+            double[,] X = AddColumnOfOnesToEnd(X1);
             // Вычисляем МНК-оценку вектора коэффициентов a
             double[,] Xt = Transpose(X);
             double[,] XtX = Multiply(Xt, X);
@@ -476,8 +447,105 @@ namespace Lab2Koed
                 ssr += Math.Pow(y_pred[i] - y_mean, 2); // добавляем квадрат отклонения прогноза от среднего значения
                 sst += Math.Pow(y[i] - y_mean, 2); // добавляем квадрат отклонения фактического значения от среднего значения
             }
-            return 1-(ssr / sst); // возвращаем отношение суммы квадратов регрессии к общей сумме квадратов
+            return 1 - (ssr / sst); // возвращаем отношение суммы квадратов регрессии к общей сумме квадратов
+        }
+       
         }
 
-    }
+        public static class Lab4
+        {
+            public static void Execute(double[][] data)
+            {
+                
+                var datanew = ExcelToArray.JaggedToMultidimensional(data);
+                MatrixStatistics.CalculateStatistics(datanew, out double[] _, out double[] _, out double[,] _, out double[,] cov, out double[,] _);
+                var covarianceMatrix = ExcelToArray.MultidimensionalToJagged(cov);
+                // Находим собственные значения и собственные векторы
+                double[] eigenValues;
+                double[][] eigenVectors;
+                CalculateEigen(covarianceMatrix, out eigenValues, out eigenVectors);
+
+                // Выводим результаты
+                Console.WriteLine("Eigenvalues:");
+                foreach (double eigenValue in eigenValues)
+                {
+                    Console.WriteLine(eigenValue);
+                }
+
+                Console.WriteLine("Eigenvectors:");
+                foreach (double[] eigenVector in eigenVectors)
+                {
+                    Console.WriteLine(string.Join(", ", eigenVector));
+                }
+            }
+            public static void CalculateEigen(double[][] matrix, out double[] eigenValues, out double[][] eigenVectors)
+            {
+                int n = matrix.Length;
+                eigenVectors = new double[n][];
+                for (int i = 0; i < n; i++)
+                {
+                    eigenVectors[i] = new double[n];
+                    eigenVectors[i][i] = 1.0;
+                }
+                eigenValues = new double[n];
+
+                double epsilon = double.Epsilon;
+                int maxIterations = n * n;
+                int iterations = 0;
+
+                while (true)
+                {
+                    // Находим максимальный внедиагональный элемент
+                    double maxOffDiagonal = 0.0;
+                    int p = 0;
+                    int q = 0;
+                    for (int i = 0; i < n; i++)
+                    {
+                        for (int j = i + 1; j < n; j++)
+                        {
+                            double offDiagonal = Math.Abs(matrix[i][j]);
+                            if (offDiagonal > maxOffDiagonal)
+                            {
+                                maxOffDiagonal = offDiagonal;
+                                p = i;
+                                q = j;
+                            }
+                        }
+                    }
+
+                    // Если максимальный внедиагональный элемент меньше порога, выходим из цикла
+                    if (maxOffDiagonal < epsilon || iterations >= maxIterations)
+                    {
+                        break;
+                    }
+
+                    // Вычисляем угол поворота
+                    double theta = 0.5 * (matrix[q][q] - matrix[p][p]) / matrix[p][q];
+                    double t = Math.Sign(theta) / (Math.Abs(theta) + Math.Sqrt(theta * theta + 1.0));
+                    double c = 1.0 / Math.Sqrt(t * t + 1.0);
+                    double s = c * t;
+
+                    // Обновляем матрицу и вектора
+                    for (int k = 0; k < n; k++)
+                    {
+                        double tmp = matrix[p][k];
+                        matrix[p][k] = c * tmp - s * matrix[q][k];
+                        matrix[q][k] = s * tmp + c * matrix[q][k];
+                        tmp = eigenVectors[k][p];
+                        eigenVectors[k][p] = c * tmp - s * eigenVectors[k][q];
+                        eigenVectors[k][q] = s * tmp + c * eigenVectors[k][q];
+                    }
+
+                    iterations++;
+                }
+
+                // Записываем собственные значения в массив eigenValues
+                for (int i = 0; i < n; i++)
+                {
+                    eigenValues[i] = matrix[i][i];
+                }
+            }
+        }
+
 }
+
