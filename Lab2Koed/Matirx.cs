@@ -8,6 +8,10 @@ using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using MathNet.Numerics.Statistics;
 using AsciiChart;
+using Microsoft.Office.Interop.Excel;
+using MathNet.Numerics.Providers.LinearAlgebra;
+using System.Text.RegularExpressions;
+
 namespace Lab2Koed
 {
     public static class MatrixStatistics
@@ -319,7 +323,7 @@ namespace Lab2Koed
             return result;
         }
 
-        static double[,] Transpose(double[,] matrix)
+        public static double[,] Transpose(double[,] matrix)
         {
             int rows = matrix.GetLength(0);
             int cols = matrix.GetLength(1);
@@ -454,12 +458,12 @@ namespace Lab2Koed
 
         public static class Lab4
         {
-            public static void Execute(double[][] data)
-            {
-                
+        public static void Execute(double[][] data)
+        {
                 var datanew = ExcelToArray.JaggedToMultidimensional(data);
                 MatrixStatistics.CalculateStatistics(datanew, out double[] _, out double[] _, out double[,] _, out double[,] cov, out double[,] _);
-                var covarianceMatrix = ExcelToArray.MultidimensionalToJagged(cov);
+                var matrix = NormalizeCovarianceMatrix(cov);
+                var covarianceMatrix = ExcelToArray.MultidimensionalToJagged(matrix);
                 // Находим собственные значения и собственные векторы
                 double[] eigenValues;
                 double[][] eigenVectors;
@@ -477,75 +481,230 @@ namespace Lab2Koed
                 {
                     Console.WriteLine(string.Join(", ", eigenVector));
                 }
-            }
-            public static void CalculateEigen(double[][] matrix, out double[] eigenValues, out double[][] eigenVectors)
+                Console.WriteLine("равенство сумм выборочных дисперсий");
+                ComputePrincipalComponents(datanew, ExcelToArray.JaggedToMultidimensional(eigenVectors));
+                var massiv=ComputeCovarianceMatrix(ExcelToArray.JaggedToMultidimensional(eigenVectors));
+                for (int i = 0; i < massiv.GetLength(0); i++)
+                {
+                for (int j = 0; j < massiv.GetLength(1); j++)
+                {
+                    Console.Write($"{massiv[i, j]:F4}\t");
+                }
+                Console.WriteLine();
+                }
+        }
+        public static double[,] NormalizeCovarianceMatrix(double[,] covarianceMatrix)
+        {
+            int numRows = covarianceMatrix.GetLength(0);
+            int numCols = covarianceMatrix.GetLength(1);
+
+            double[,] result = new double[numRows, numCols];
+
+            for (int j = 0; j < numCols; j++)
             {
-                int n = matrix.Length;
-                eigenVectors = new double[n][];
+                double variance = covarianceMatrix[j, j];
+                double stdDev = Math.Sqrt(variance);
+
+                for (int i = 0; i < numRows; i++)
+                {
+                    result[i, j] = covarianceMatrix[i, j] / stdDev;
+                }
+            }
+
+            return result;
+        }
+        public static void CalculateEigen(double[][] matrix, out double[] eigenValues, out double[][] eigenVectors)
+            {
+            int n = matrix.Length;
+            eigenValues = new double[n];
+            eigenVectors = new double[n][];
+
+            // Создаем единичную матрицу того же размера, что и исходная матрица
+            double[][] v = new double[n][];
+            for (int i = 0; i < n; i++)
+            {
+                v[i] = new double[n];
+                v[i][i] = 1;
+            }
+
+            bool converged = false;
+            int iteration = 0;
+
+            // Повторяем до тех пор, пока матрица не сойдется
+            while (!converged && iteration < 10000)
+            {
+                // Находим индексы наибольшего элемента в матрице
+                int p = 0;
+                int q = 1;
+                double max = Math.Abs(matrix[p][q]);
                 for (int i = 0; i < n; i++)
                 {
-                    eigenVectors[i] = new double[n];
-                    eigenVectors[i][i] = 1.0;
-                }
-                eigenValues = new double[n];
-
-                double epsilon = double.Epsilon;
-                int maxIterations = n * n;
-                int iterations = 0;
-
-                while (true)
-                {
-                    // Находим максимальный внедиагональный элемент
-                    double maxOffDiagonal = 0.0;
-                    int p = 0;
-                    int q = 0;
-                    for (int i = 0; i < n; i++)
+                    for (int j = i + 1; j < n; j++)
                     {
-                        for (int j = i + 1; j < n; j++)
+                        double aij = Math.Abs(matrix[i][j]);
+                        if (aij > max)
                         {
-                            double offDiagonal = Math.Abs(matrix[i][j]);
-                            if (offDiagonal > maxOffDiagonal)
-                            {
-                                maxOffDiagonal = offDiagonal;
-                                p = i;
-                                q = j;
-                            }
+                            max = aij;
+                            p = i;
+                            q = j;
                         }
                     }
-
-                    // Если максимальный внедиагональный элемент меньше порога, выходим из цикла
-                    if (maxOffDiagonal < epsilon || iterations >= maxIterations)
-                    {
-                        break;
-                    }
-
-                    // Вычисляем угол поворота
-                    double theta = 0.5 * (matrix[q][q] - matrix[p][p]) / matrix[p][q];
-                    double t = Math.Sign(theta) / (Math.Abs(theta) + Math.Sqrt(theta * theta + 1.0));
-                    double c = 1.0 / Math.Sqrt(t * t + 1.0);
-                    double s = c * t;
-
-                    // Обновляем матрицу и вектора
-                    for (int k = 0; k < n; k++)
-                    {
-                        double tmp = matrix[p][k];
-                        matrix[p][k] = c * tmp - s * matrix[q][k];
-                        matrix[q][k] = s * tmp + c * matrix[q][k];
-                        tmp = eigenVectors[k][p];
-                        eigenVectors[k][p] = c * tmp - s * eigenVectors[k][q];
-                        eigenVectors[k][q] = s * tmp + c * eigenVectors[k][q];
-                    }
-
-                    iterations++;
                 }
 
-                // Записываем собственные значения в массив eigenValues
+                // Если наибольший элемент матрицы близок к нулю, то матрица уже сойдена
+                if (max < double.Epsilon)
+                {
+                    converged = true;
+                    break;
+                }
+
+                // Находим угол поворота
+                double app = matrix[p][p];
+                double aqq = matrix[q][q];
+                double apq = matrix[p][q];
+                double phi = 0.5 * Math.Atan2(2 * apq, aqq - app);
+
+                double cos = Math.Cos(phi);
+                double sin = Math.Sin(phi);
+
+                // Создаем матрицу поворота
+                double[][] rotation = new double[n][];
                 for (int i = 0; i < n; i++)
                 {
-                    eigenValues[i] = matrix[i][i];
+                    rotation[i] = new double[n];
+                    rotation[i][i] = 1;
+                }
+
+                rotation[p][p] = cos;
+                rotation[p][q] = -sin;
+                rotation[q][p] = sin;
+                rotation[q][q] = cos;
+                
+                // Выполняем поворот
+                double[][] rotated = Multiply(Multiply(Transpose(rotation), matrix), rotation);
+                double[][] vRotated = Multiply(v, rotation);
+
+                // Обновляем матрицы
+                matrix = rotated;
+                v = vRotated;
+
+                iteration++;
+            }
+
+            // Извлекаем собственные значения и собственные векторы из полученных матриц
+            for (int i = 0; i < n; i++)
+            {
+                eigenValues[i] = matrix[i][i];
+                eigenVectors[i] = new double[n];
+                for (int j = 0; j < n; j++)
+                {
+                    eigenVectors[i][j] = v[j][i];
                 }
             }
+            static double[][] Multiply(double[][] matrix1, double[][] matrix2)
+            {
+                int n = matrix1.Length;
+                int m = matrix2.Length;
+                int p = matrix2[0].Length;
+                double[][] result = new double[n][];
+                for (int i = 0; i < n; i++)
+                {
+                    result[i] = new double[p];
+                    for (int j = 0; j < p; j++)
+                    {
+                        double sum = 0;
+                        for (int k = 0; k < m; k++)
+                        {
+                            sum += matrix1[i][k] * matrix2[k][j];
+                        }
+                        result[i][j] = sum;
+                    }
+                }
+                return result;
+            }
+            static double[][] Transpose(double[][] matrix)
+            {
+                int n = matrix.Length;
+                int m = matrix[0].Length;
+                double[][] result = new double[m][];
+                for (int i = 0; i < m; i++)
+                {
+                    result[i] = new double[n];
+                    for (int j = 0; j < n; j++)
+                    {
+                        result[i][j] = matrix[j][i];
+                    }
+                }
+                return result;
+            }
+
         }
+
+        public static double[,] ComputeCovarianceMatrix(double[,] projections)
+        {
+            double[,] covarianceMatrix = new double[projections.GetLength(1), projections.GetLength(1)];
+
+            // Вычисляем матрицу ковариации
+            for (int i = 0; i < projections.GetLength(1); i++)
+            {
+                for (int j = 0; j < projections.GetLength(1); j++)
+                {
+                    double mean1 = projections.Cast<double>().Where((x, k) => k % projections.GetLength(1) == i).Average();
+                    double mean2 = projections.Cast<double>().Where((x, k) => k % projections.GetLength(1) == j).Average();
+
+                    double covariance = 0;
+                    for (int k = 0; k < projections.GetLength(0); k++)
+                    {
+                        covariance += (projections[k, i] - mean1) * (projections[k, j] - mean2);
+                    }
+
+                    covariance /= projections.GetLength(0) - 1;
+
+                    covarianceMatrix[i, j] = covariance;
+                }
+            }
+
+            return covarianceMatrix;
+        }
+        public static double[,] ComputePrincipalComponents(double[,] data, double[,] components)
+        {
+            // Вычисляем сумму квадратов отклонений для каждого признака
+            double[] variances = new double[data.GetLength(1)];
+            for (int j = 0; j < data.GetLength(1); j++)
+            {
+                double mean = data.Cast<double>().Where((x, i) => i % data.GetLength(1) == j).Average();
+                variances[j] = data.Cast<double>().Where((x, i) => i % data.GetLength(1) == j).Select(x => Math.Pow(x - mean, 2)).Sum();
+            }
+
+            // Вычисляем сумму квадратов отклонений для каждой главной компоненты
+            double[] componentVariances = new double[components.GetLength(1)];
+            for (int i = 0; i < data.GetLength(0); i++)
+            {
+                for (int j = 0; j < components.GetLength(1); j++)
+                {
+                    double dotProduct = 0;
+                    for (int k = 0; k < data.GetLength(1); k++)
+                    {
+                        dotProduct += data[i, k] * components[k, j];
+                    }
+                    componentVariances[j] += Math.Pow(dotProduct, 2);
+                }
+            }
+
+            // Проверяем равенство сумм дисперсий
+            if (variances.Sum()==componentVariances.Sum())
+            {
+                Console.WriteLine("Суммы дисперсий равны");
+            }
+            else
+            {
+                Console.WriteLine("Суммы дисперсий не равны");
+            }
+
+            // Возвращаем матрицу проекций объектов на главные компоненты
+            return components;
+        }
+    }
 
 }
 
