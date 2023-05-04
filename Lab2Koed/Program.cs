@@ -2,7 +2,7 @@
 using MathNet.Numerics.LinearAlgebra;
 using System;
 
-var Z = ExcelToArray.GetRangeData(@$"{Directory.GetCurrentDirectory()}/Data1.xlsx", "исходные данные", "C3", "G80");
+var Z = ExcelToArray.GetRangeData(@$"{Directory.GetCurrentDirectory()}/Data1.xlsx", "исходные данные", "C3", "F80");
 var NZ = ExcelToArray.JaggedToMultidimensional(Z);
 /*
  * Console.WriteLine("Default matrix");
@@ -12,4 +12,4 @@ MatrixStatistics.CalculateStatistics(NZ, out double[] means, out double[] varian
 MatrixStatistics.Display(means, variances, standardized, covariance, correlation);
  */
 //MatrixStatistics.MHK2(NZ);
-Lab4.Execute(Z);
+Lab42.Execute(NZ);
